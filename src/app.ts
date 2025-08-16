@@ -23,17 +23,17 @@ dotenv.config();
 
 const app = express();
 
-// connect once per cold start, reuse on warm starts
-let dbOnce: any | null = null;
-function ensureDB() {
-  if (!dbOnce) dbOnce = connectDB();
-  return dbOnce;
-}
+let isConnected = false;
+
 app.use(async (_req, _res, next) => {
   try {
-    await ensureDB();
+    if (!isConnected) {
+      await connectDB();
+      isConnected = true;
+    }
     next();
   } catch (err) {
+    console.error("Database connection failed:", err);
     next(err as Error);
   }
 });
@@ -70,24 +70,68 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 app.get("/api/health/db", async (_req, res) => {
+  // Set a timeout for the response
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(503).json({
+        ok: false,
+        error: "Database health check timeout",
+        state: mongoose.connection.readyState,
+      });
+    }
+  }, 10000); // 10 second timeout
+
   try {
-    // ensure a connection exists
-    await connectDB();
+    // Ensure connection with timeout
+    await Promise.race([
+      connectDB(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 5000)
+      ),
+    ]);
 
-    // low-level server ping (throws if blocked / auth fails)
-    await mongoose.connection.db?.admin().command({ ping: 1 });
+    // Quick ping with timeout
+    await Promise.race([
+      mongoose.connection.db?.admin().command({ ping: 1 }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Ping timeout")), 3000)
+      ),
+    ]);
 
-    const states = ["disconnected", "connected", "connecting", "disconnecting"];
-    res.json({
-      state: states[mongoose.connection.readyState] || "unknown",
-    });
+    clearTimeout(timeout);
+
+    if (!res.headersSent) {
+      const states = [
+        "disconnected",
+        "connected",
+        "connecting",
+        "disconnecting",
+      ];
+      res.json({
+        ok: true,
+        state: states[mongoose.connection.readyState] || "unknown",
+        timestamp: new Date().toISOString(),
+      });
+    }
   } catch (err: any) {
-    res.status(503).json({
-      ok: false,
-      error: err?.message || String(err),
-      state: mongoose.connection.readyState, // 0,1,2,3
-    });
+    clearTimeout(timeout);
+
+    if (!res.headersSent) {
+      res.status(503).json({
+        ok: false,
+        error: err?.message || String(err),
+        state: mongoose.connection.readyState,
+      });
+    }
   }
+});
+
+app.get("/api/test", (_req: Request, res: Response) => {
+  res.json({
+    message: "Server is working!",
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV,
+  });
 });
 
 app.use("/api/auth", authRouter);
