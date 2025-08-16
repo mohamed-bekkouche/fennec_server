@@ -17,6 +17,7 @@ import collectionRouter from "./routes/CollectionRouter";
 import productImageRouter from "./routes/ProductImageRouter";
 import couponRouter from "./routes/CouponRouter";
 import suitElemntRouter from "./routes/SuitELementRouter";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -66,6 +67,27 @@ app.use(
 
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ ok: true });
+});
+
+app.get("/api/health/db", async (_req, res) => {
+  try {
+    // ensure a connection exists
+    await connectDB();
+
+    // low-level server ping (throws if blocked / auth fails)
+    await mongoose.connection.db?.admin().command({ ping: 1 });
+
+    const states = ["disconnected", "connected", "connecting", "disconnecting"];
+    res.json({
+      state: states[mongoose.connection.readyState] || "unknown",
+    });
+  } catch (err: any) {
+    res.status(503).json({
+      ok: false,
+      error: err?.message || String(err),
+      state: mongoose.connection.readyState, // 0,1,2,3
+    });
+  }
 });
 
 app.use("/api/auth", authRouter);
