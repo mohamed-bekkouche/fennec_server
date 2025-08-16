@@ -11,8 +11,7 @@ export default async function connectDB() {
   if (global.__mongooseConn) return global.__mongooseConn;
 
   // accept either name; prefer MONGODB_URI
-  const uri =
-    "mongodb+srv://mohamed1:mohamed123456@cluster0.avglpd1.mongodb.net/Fennec?retryWrites=true&w=majority&authSource=admin&appName=Cluster0";
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || "").trim();
   if (!uri) {
     // don't default to localhost in serverless; fail clearly
     throw new Error("MONGODB_URI (or MONGO_URI) is missing");
