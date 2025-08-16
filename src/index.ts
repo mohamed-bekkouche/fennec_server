@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import path from "path";
 import connectDB from "./config/database";
+import serverless from "serverless-http";
 
 // routers
 import authRouter from "./routes/AuthRouter";
@@ -36,8 +37,7 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const UPLOADS_DIR = path.resolve("src/uploads");
-app.use("/uploads", express.static(UPLOADS_DIR));
+app.use("/uploads", express.static(path.resolve("public/uploads")));
 
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN ?? "",
@@ -72,7 +72,4 @@ app.use("/api/product-images", productImageRouter);
 app.use("/api/suit-elements", suitElemntRouter);
 app.use("/api/coupons", couponRouter);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+export default serverless(app);
