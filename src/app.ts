@@ -5,7 +5,6 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import path from "path";
 import connectDB from "./config/database";
-import serverless from "serverless-http";
 
 // routers
 import authRouter from "./routes/AuthRouter";
@@ -23,13 +22,18 @@ dotenv.config();
 
 const app = express();
 
-// DB: ensure we connect once per cold start and reuse on warm starts
+// connect once per cold start, reuse on warm starts
+let dbOnce: any | null = null;
+function ensureDB() {
+  if (!dbOnce) dbOnce = connectDB();
+  return dbOnce;
+}
 app.use(async (_req, _res, next) => {
   try {
-    await connectDB();
+    await ensureDB();
     next();
   } catch (err) {
-    next(err);
+    next(err as Error);
   }
 });
 
@@ -37,21 +41,24 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use("/uploads", express.static(path.resolve("public/uploads")));
+// ⚠️ Vercel Functions are read-only; keep uploads in external storage.
+// Static files that ship with the app can live in /public.
+const UPLOADS_DIR = path.resolve("public/uploads");
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 const allowedOrigins = [
   process.env.CLIENT_ORIGIN ?? "",
   process.env.ADMIN_ORIGIN ?? "",
-  process.env.PROD_CLIENT_ORIGIN ?? "https://<your-client>.vercel.app",
-  process.env.PROD_ADMIN_ORIGIN ?? "https://<your-admin>.vercel.app",
+  process.env.PROD_CLIENT_ORIGIN ?? "",
+  process.env.PROD_ADMIN_ORIGIN ?? "",
 ];
 
 app.use(
   cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
@@ -72,4 +79,4 @@ app.use("/api/product-images", productImageRouter);
 app.use("/api/suit-elements", suitElemntRouter);
 app.use("/api/coupons", couponRouter);
 
-export default serverless(app);
+export default app;

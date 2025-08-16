@@ -1,2 +1,4 @@
-// api/index.ts
-export { default } from "../src/index";
+import serverless from "serverless-http";
+import app from "../src/app";
+
+export default serverless(app);
