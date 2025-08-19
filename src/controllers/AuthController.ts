@@ -56,6 +56,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         html,
       });
     }
+    if (!fs.existsSync(templatePath)) {
+      console.error("Template file not found:", templatePath);
+      res
+        .status(400)
+        .json({ message: `Template file not found: ${templatePath}` });
+      return;
+    }
 
     res.cookie("activation_token", activation_token, {
       httpOnly: true,
