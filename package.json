@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "ts-node-dev --files --respawn src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cpx 'src/mails/**/*' dist/mails",
     "start": "node dist/src/index.js"
   },
   "engines": {
